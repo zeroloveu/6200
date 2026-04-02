@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block title %}注册 | Vote Station{% endblock %}
+
+{% block content %}
+  <section class="auth-layout">
+    <div class="auth-copy">
+      <p class="eyebrow">Create Account</p>
+      <h1>先创建账号，再绑定你的链上钱包。</h1>
+      <p class="lead">
+        每个账号都需要绑定一个钱包地址。后续创建投票、校验允许名单，以及参与链上投票，都依赖这条钱包地址。
+      </p>
+    </div>
+
+    <form class="auth-form" method="post" action="/register">
+      <h2>注册账号</h2>
+      {% if form_error %}
+        <p class="form-error">{{ form_error }}</p>
+      {% endif %}
+      <label>
+        用户名
+        <input type="text" name="username" value="{{ prefill_username or '' }}" placeholder="alice" required>
+      </label>
+      <label>
+        密码
+        <input type="password" name="password" placeholder="至少 6 位" required>
+      </label>
+      <label>
+        钱包地址
+        <input type="text" name="wallet_address" value="{{ prefill_wallet_address or '' }}" placeholder="0x..." required>
+      </label>
+      <button type="submit" class="button">完成注册</button>
+      <p class="auth-footnote">已经有账号了？<a href="/login">去登录</a></p>
+    </form>
+  </section>
+{% endblock %}

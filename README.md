@@ -1,139 +1,212 @@
-# Secure Voting Smart Contract (Course Project)
+# Secure Voting Project
 
-This repository provides a simple, secure, and transparent voting system based on Ethereum smart contracts.
-It is designed for coursework: small enough to understand quickly, but with practical security and testing basics.
+This repository now contains a hybrid voting application:
 
-Detailed project introduction:
+1. FastAPI handles accounts, sessions, poll creation, allowed-user management, and public result pages.
+2. Solidity contracts store the actual ballot records on chain.
+
+Detailed smart contract introduction:
 `docs/PROJECT_INTRODUCTION.md`
 
-## 1. Features
+## Hybrid Architecture
 
-- Whitelist-based voters (`registerVoter`, `batchRegisterVoters`)
-- One wallet can vote only once
-- Time-bounded election (`startTime`, `endTime`)
-- Public and immutable on-chain vote counts
-- End-of-election result query (`getAllResults`, `getWinner`)
-- Gas-focused contract style (custom errors, bounded loops)
+The current app works like this:
 
-## 2. Security and Efficiency Practices Used
+- Users register and log in on the FastAPI website.
+- Each user binds one wallet address to their account.
+- Any logged-in user can publish a poll from the web UI.
+- When a poll is created, the backend deploys a dedicated `SecureVoting` contract for that poll.
+- Allowed users vote through a browser wallet such as MetaMask, so the actual vote transaction is written on chain.
+- The website reads on-chain status and result data back from the contract.
+- After the poll ends, everyone can open the result page and see the on-chain outcome.
 
-- Solidity `^0.8.24` (built-in overflow/underflow checks)
-- Custom errors instead of long revert strings
-- Explicit access control (`onlyOwner`)
-- Strict state validation (time window, voter status, candidate id)
-- Batch-size cap for registration to avoid block gas risks
-- No external calls in vote flow (reduces reentrancy surface)
+This means the web app is the management layer, while the contract is the source of truth for ballots and results.
 
-## 3. Legal/Compliance Notes (Important)
+## FastAPI App
 
-This demo contract supports compliance-oriented design, but legal compliance depends on your real deployment process:
+### Main features
 
-- On-chain data minimization: do not store personal identity data on chain.
-- Identity verification should be done off chain by authorized administrators.
-- Election operators should publish clear rules (voter eligibility, vote period, dispute handling).
-- Follow local laws/regulations for elections, privacy, and cybersecurity in your jurisdiction.
+- User registration and login
+- Password hashing and verification
+- Wallet binding per user
+- Poll creation, editing, and deletion from the web UI
+- Configurable topic, time window, candidate options, and allowed usernames
+- Browser-wallet voting on chain
+- Explicit abstain support on chain
+- Public result pages backed by on-chain contract reads
 
-For a class assignment, this implementation is usually sufficient to discuss integrity, transparency, and tamper-resistance.
+### App stack
 
-## 4. Project Structure
+- FastAPI
+- SQLAlchemy
+- Jinja2 templates
+- SQLite by default
+- Session-based login
+- Ethers.js in the browser
+- Node bridge script for contract deployment and contract reads
+
+### FastAPI project structure
 
 ```text
-contracts/
-  SecureVoting.sol
+app/
+  chain_service.py
+  database.py
+  main.py
+  models.py
+  security.py
+  static/
+    styles.css
+    vendor/
+      ethers.umd.min.js
+  templates/
+    *.html
 scripts/
-  deploy.js
-test/
-  helpers/
-    deploy.js
-  unit/
-    SecureVoting.unit.test.js
-  integration/
-    SecureVoting.integration.test.js
-  performance/
-    SecureVoting.performance.test.js
+  fastapi-chain.js
+requirements.txt
 ```
 
-## 5. Install and Run
+## Local Setup
 
-### Install dependencies
+### 1. Install dependencies
+
+Python side:
+
+```bash
+pip install -r requirements.txt
+```
+
+Node side:
 
 ```bash
 npm install
 ```
 
-### Compile
+### 2. Configure `.env`
+
+Copy `.env.example` to `.env` and set at least:
+
+```env
+APP_SECRET_KEY=change-this-secret-in-production
+APP_DATABASE_URL=sqlite:///./fastapi_vote.db
+APP_TIMEZONE=Asia/Shanghai
+
+APP_CHAIN_RPC_URL=https://sepolia.infura.io/v3/YOUR_KEY
+APP_CHAIN_PRIVATE_KEY=YOUR_PRIVATE_KEY_WITHOUT_0x
+APP_CHAIN_NETWORK_NAME=sepolia
+```
+
+Notes:
+
+- `APP_CHAIN_PRIVATE_KEY` is the backend deployer wallet used by FastAPI to deploy each poll contract.
+- End users still need their own browser wallet to cast votes on chain.
+
+### 3. Compile contracts
 
 ```bash
 npm run compile
 ```
 
-### Run all tests
+This project is configured to use the bundled `solcjs` compiler for stability in this workspace.
+
+### 4. Start the web app
 
 ```bash
+uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+Open:
+
+```text
+http://127.0.0.1:8000
+```
+
+## Docker Deployment
+
+This repository includes a production-style Docker build that packages:
+
+- FastAPI
+- SQLAlchemy + SQLite
+- Node.js bridge scripts
+- Hardhat contract compilation artifacts
+
+### 1. Prepare `.env`
+
+Create `.env` from `.env.example` and fill in your chain settings:
+
+```env
+APP_SECRET_KEY=change-this-secret-in-production
+APP_DATABASE_URL=sqlite:///./fastapi_vote.db
+APP_TIMEZONE=Asia/Shanghai
+
+APP_CHAIN_RPC_URL=https://eth-sepolia.g.alchemy.com/v2/YOUR_KEY
+APP_CHAIN_PRIVATE_KEY=YOUR_PRIVATE_KEY_WITHOUT_0x
+APP_CHAIN_NETWORK_NAME=sepolia
+```
+
+When running with Docker Compose, the database location is overridden to a persistent container volume at `/app/data/fastapi_vote.db`.
+
+### 2. Build and start
+
+```bash
+docker compose up --build -d
+```
+
+Open:
+
+```text
+http://127.0.0.1:8000
+```
+
+### 3. Stop
+
+```bash
+docker compose down
+```
+
+### 4. Rebuild after code changes
+
+```bash
+docker compose up --build -d
+```
+
+## Web Voting Flow
+
+1. Register two or more users in the web app.
+2. Make sure each user has a wallet address bound in `/profile`.
+3. Log in as any user and create a poll.
+4. The backend deploys a fresh `SecureVoting` contract for that poll.
+5. Allowed users open the poll detail page and vote through their browser wallet.
+6. The website syncs the wallet transaction hash back into the local database for display.
+7. After the poll ends, everyone can open the public result page and view the on-chain result.
+
+## Smart Contract Layer
+
+### Main smart contract features
+
+- Whitelist-based voters (`registerVoter`, `batchRegisterVoters`)
+- One wallet can vote or abstain only once
+- Time-bounded election (`startTime`, `endTime`)
+- Public on-chain vote counts
+- Public on-chain abstention counts
+- End-of-election result query (`getAllResults`, `getWinner`)
+
+### Contract commands used by the new scheme
+
+Compile and test:
+
+```bash
+npm run compile
 npm test
 ```
 
-### Run test categories
+## Deployment Notes
 
-```bash
-npm run test:unit
-npm run test:integration
-npm run test:performance
-```
+- Use a strong `APP_SECRET_KEY` in production.
+- SQLite is acceptable for demos; switch `APP_DATABASE_URL` to MySQL or PostgreSQL for a larger deployment.
+- The current edit/delete rule is conservative: once any on-chain vote or abstain action has been synced, the poll can no longer be edited or deleted from the web app.
+- Results are public after poll end by design.
+- The repository no longer keeps the old standalone Sepolia CLI scripts. Contract deployment and contract reads now happen through the FastAPI hybrid flow.
 
-### Optional gas report
+## Disclaimer
 
-```bash
-npm run test:gas
-```
-
-## 6. Deployment
-
-### Local deployment
-
-Terminal 1:
-
-```bash
-npm run node
-```
-
-Terminal 2:
-
-```bash
-npm run deploy:local
-```
-
-### Sepolia deployment
-
-1. Copy `.env.example` to `.env`
-2. Fill values for `SEPOLIA_RPC_URL`, `PRIVATE_KEY`, `ETHERSCAN_API_KEY`
-3. Optional: adjust `VERIFICATION_CONFIRMATIONS` if your RPC provider is slow
-4. Run:
-
-```bash
-npm run deploy:sepolia
-```
-
-The deploy script will automatically wait for confirmations and submit source verification to Etherscan when `ETHERSCAN_API_KEY` is set.
-
-### Interact with a Sepolia deployment
-
-Set `CONTRACT_ADDRESS` in `.env` to your deployed contract address.
-Optionally set `VOTER_ADDRESS` for registration and `VOTE_CANDIDATE_ID` for the vote target.
-
-```bash
-npm run status:sepolia
-npm run register:sepolia
-npm run vote:sepolia
-```
-
-## 7. Demo Workflow
-
-1. Deploy contract with candidates and initial voter list.
-2. Owner registers more voters if needed.
-3. Voters cast votes during election time window.
-4. After election end, query final results and winner.
-
-## 8. Disclaimer
-
-This code is intended for educational use and coursework demonstration, not production election infrastructure.
+This is an educational/demo-oriented hybrid voting system, not production-grade election infrastructure.

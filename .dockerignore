@@ -1,0 +1,17 @@
+.git
+.gitignore
+.venv
+node_modules
+artifacts
+cache
+coverage
+coverage.json
+__pycache__
+*.pyc
+*.pyo
+*.db
+*.sqlite3
+.env
+uvicorn.out.log
+uvicorn.err.log
+npm-debug.log*

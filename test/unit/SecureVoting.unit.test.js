@@ -62,6 +62,18 @@ describe("SecureVoting - Unit Tests", function () {
     await expect(voting.connect(voters[0]).vote(1)).to.be.revertedWithCustomError(voting, "AlreadyVoted");
   });
 
+  it("allows registered voter to abstain exactly once", async function () {
+    const { voting, voters, startTime } = await loadFixture(fixture);
+    await time.increaseTo(startTime + 1n);
+
+    await expect(voting.connect(voters[1]).abstain()).to.emit(voting, "Abstained").withArgs(voters[1].address);
+    expect(await voting.totalVotes()).to.equal(0);
+    expect(await voting.totalAbstentions()).to.equal(1);
+    expect(await voting.hasVoted(voters[1].address)).to.equal(true);
+
+    await expect(voting.connect(voters[1]).vote(0)).to.be.revertedWithCustomError(voting, "AlreadyVoted");
+  });
+
   it("rejects vote from unregistered voter", async function () {
     const { voting, voters, startTime } = await loadFixture(fixture);
     await time.increaseTo(startTime + 1n);
@@ -81,6 +93,7 @@ describe("SecureVoting - Unit Tests", function () {
     await time.increaseTo(endTime + 1n);
 
     await expect(voting.connect(voters[0]).vote(0)).to.be.revertedWithCustomError(voting, "ElectionEnded");
+    await expect(voting.connect(voters[1]).abstain()).to.be.revertedWithCustomError(voting, "ElectionEnded");
   });
 
   it("returns status transitions correctly", async function () {

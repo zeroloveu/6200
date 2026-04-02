@@ -1,0 +1,19 @@
+services:
+  vote-station:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: vote-station
+    env_file:
+      - .env
+    environment:
+      APP_DATABASE_URL: sqlite:////app/data/fastapi_vote.db
+      PYTHONUNBUFFERED: "1"
+    ports:
+      - "8000:8000"
+    volumes:
+      - vote-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  vote-data:

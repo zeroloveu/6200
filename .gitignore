@@ -1,6 +1,24 @@
-node_modules
-artifacts
-cache
-coverage
+node_modules/
+
+# Local environment files
 .env
+.venv/
+
+# Hardhat build outputs
+artifacts/
+cache/
+coverage/
 coverage.json
+
+# Python caches
+__pycache__/
+*.pyc
+*.pyo
+
+# Local databases
+*.db
+*.sqlite3
+
+# Local logs
+uvicorn.out.log
+uvicorn.err.log

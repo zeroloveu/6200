@@ -21,9 +21,10 @@ describe("SecureVoting - Integration Tests", function () {
     await voting.connect(voters[1]).vote(1);
     await voting.connect(voters[2]).vote(1);
     await voting.connect(voters[3]).vote(1);
-    await voting.connect(voters[4]).vote(2);
+    await voting.connect(voters[4]).abstain();
 
-    expect(await voting.totalVotes()).to.equal(5);
+    expect(await voting.totalVotes()).to.equal(4);
+    expect(await voting.totalAbstentions()).to.equal(1);
 
     await expect(voting.getAllResults()).to.be.revertedWithCustomError(voting, "ElectionNotEnded");
 
@@ -35,7 +36,7 @@ describe("SecureVoting - Integration Tests", function () {
     expect(names[2]).to.equal("Charlie");
     expect(votes[0]).to.equal(1);
     expect(votes[1]).to.equal(3);
-    expect(votes[2]).to.equal(1);
+    expect(votes[2]).to.equal(0);
 
     const winner = await voting.getWinner();
     expect(winner[0]).to.equal(1);
@@ -47,13 +48,14 @@ describe("SecureVoting - Integration Tests", function () {
   it("marks tie correctly", async function () {
     const { voting, voters, startTime, endTime } = await loadFixture(integrationFixture);
 
-    await voting.batchRegisterVoters([voters[2].address, voters[3].address]);
+    await voting.batchRegisterVoters([voters[2].address, voters[3].address, voters[4].address]);
     await time.increaseTo(startTime + 1n);
 
     await voting.connect(voters[0]).vote(0);
     await voting.connect(voters[1]).vote(1);
     await voting.connect(voters[2]).vote(0);
-    await voting.connect(voters[3]).vote(1);
+    await voting.connect(voters[3]).abstain();
+    await voting.connect(voters[4]).vote(1);
 
     await time.increaseTo(endTime + 1n);
 

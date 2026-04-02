@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block title %}{{ poll.topic }} 结果 | Vote Station{% endblock %}
+
+{% block content %}
+  <section class="detail-hero">
+    <div>
+      <p class="eyebrow">On-chain Result</p>
+      <h1>{{ poll.topic }}</h1>
+      <div class="inline-meta">
+        <span class="status status-ended">{{ poll_status }}</span>
+        <span>创建者：{{ poll.creator.username }}</span>
+        <span>网络：{{ poll.chain_network_name or "sepolia" }}</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="results-layout">
+    <div class="results-summary">
+      <p class="eyebrow">Source of Truth</p>
+      <h2>结果直接来自链上合约</h2>
+      <p class="lead">
+        这个页面读取的是链上合约的实时状态，而不是应用自己的本地统计。任何人都可以通过合约地址或区块浏览器复核这些结果。
+      </p>
+      <p><strong>合约地址：</strong>{{ poll.chain_contract_address or "未部署" }}</p>
+      {% if contract_url %}
+        <p><a href="{{ contract_url }}" target="_blank" rel="noreferrer">打开区块浏览器查看合约</a></p>
+      {% endif %}
+      {% if chain_error %}
+        <p class="form-error">{{ chain_error }}</p>
+      {% endif %}
+    </div>
+
+    <div class="result-bars">
+      {% if chain_summary %}
+        {% set max_votes = (chain_summary.candidates | map(attribute='voteCount') | list | max) if chain_summary.candidates else 0 %}
+        {% for candidate in chain_summary.candidates %}
+          {% set count = candidate.voteCount %}
+          {% set width = 0 if max_votes == 0 else ((count / max_votes) * 100) %}
+          <div class="result-bar-row">
+            <div class="result-bar-label">
+              <strong>{{ candidate.name }}</strong>
+              <span>{{ count }} 票</span>
+            </div>
+            <div class="result-bar-track">
+              <div class="result-bar-fill" style="width: {{ width }}%;"></div>
+            </div>
+          </div>
+        {% endfor %}
+
+        <div class="result-bar-row">
+          <div class="result-bar-label">
+            <strong>弃权</strong>
+            <span>{{ chain_summary.totalAbstentions }} 次</span>
+          </div>
+          <div class="result-bar-track">
+            <div
+              class="result-bar-fill result-bar-fill-muted"
+              style="width: {% if chain_summary.totalVotes == 0 and chain_summary.totalAbstentions == 0 %}0{% else %}{{ (chain_summary.totalAbstentions / (chain_summary.totalVotes + chain_summary.totalAbstentions)) * 100 }}{% endif %}%;"
+            ></div>
+          </div>
+        </div>
+
+        <div class="notice-panel">
+          <p><strong>候选项投票总数：</strong>{{ chain_summary.totalVotes }}</p>
+          <p><strong>弃权总数：</strong>{{ chain_summary.totalAbstentions }}</p>
+          <p><strong>登记选民总数：</strong>{{ chain_summary.totalRegisteredVoters }}</p>
+          {% if chain_summary.winner %}
+            <p>
+              <strong>当前结果：</strong>
+              {% if chain_summary.winner.isTie %}
+                当前为平票状态
+              {% else %}
+                {{ chain_summary.winner.winnerName }}（{{ chain_summary.winner.winnerVotes }} 票）
+              {% endif %}
+            </p>
+          {% endif %}
+        </div>
+      {% else %}
+        <div class="notice-panel">
+          <p>当前无法读取链上结果，请稍后再试。</p>
+        </div>
+      {% endif %}
+    </div>
+  </section>
+{% endblock %}

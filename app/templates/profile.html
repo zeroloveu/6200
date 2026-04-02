@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block title %}钱包资料 | Vote Station{% endblock %}
+
+{% block content %}
+  <section class="auth-layout">
+    <div class="auth-copy">
+      <p class="eyebrow">Wallet Profile</p>
+      <h1>把你的账号和链上身份绑定在一起。</h1>
+      <p class="lead">
+        钱包地址会用于允许名单校验，也会在投票详情页提示你应该使用哪个钱包账户来完成链上投票。
+      </p>
+    </div>
+
+    <form class="auth-form" method="post" action="/profile">
+      <h2>更新钱包地址</h2>
+      {% if form_error %}
+        <p class="form-error">{{ form_error }}</p>
+      {% endif %}
+      <label>
+        当前用户名
+        <input type="text" value="{{ current_user.username }}" disabled>
+      </label>
+      <label>
+        钱包地址
+        <input type="text" name="wallet_address" value="{{ current_user.wallet_address or '' }}" placeholder="0x..." required>
+      </label>
+      <button type="submit" class="button">保存钱包地址</button>
+    </form>
+  </section>
+{% endblock %}

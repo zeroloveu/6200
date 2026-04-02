@@ -1,35 +1,32 @@
 require("@nomicfoundation/hardhat-toolbox");
 require("hardhat-gas-reporter");
-require("dotenv").config();
+const { subtask } = require("hardhat/config");
+const { TASK_COMPILE_SOLIDITY_GET_SOLC_BUILD } = require("hardhat/builtin-tasks/task-names");
 
-const { SEPOLIA_RPC_URL, PRIVATE_KEY, ETHERSCAN_API_KEY, REPORT_GAS } = process.env;
+const localSolcJsPath = require.resolve("solc/soljson.js");
+const localSolcVersion = "0.8.26";
+const localSolcLongVersion = "0.8.26+commit.8a97fa7a.Emscripten.clang";
 
-function sanitizeEnv(value) {
-  if (!value) return "";
-  const trimmed = value.trim();
-  if (!trimmed || trimmed.includes("YOUR_")) return "";
-  return trimmed;
-}
+// Force Hardhat to use the bundled solcjs compiler. This avoids a recurring
+// Windows-native solc issue in this workspace while keeping the build portable.
+subtask(TASK_COMPILE_SOLIDITY_GET_SOLC_BUILD, async (args, hre, runSuper) => {
+  const requestedVersion = (args.solcVersion || "").trim();
+  if (!requestedVersion || requestedVersion === "0.8.26") {
+    return {
+      compilerPath: localSolcJsPath,
+      isSolcJs: true,
+      version: localSolcVersion,
+      longVersion: localSolcLongVersion
+    };
+  }
 
-function normalizePrivateKey(value) {
-  const sanitizedValue = sanitizeEnv(value);
-  if (!sanitizedValue) return "";
-
-  const prefixedValue = sanitizedValue.startsWith("0x")
-    ? sanitizedValue
-    : `0x${sanitizedValue}`;
-
-  return /^0x[0-9a-fA-F]{64}$/.test(prefixedValue) ? prefixedValue : "";
-}
-
-const sepoliaRpcUrl = sanitizeEnv(SEPOLIA_RPC_URL);
-const normalizedPrivateKey = normalizePrivateKey(PRIVATE_KEY);
-const etherscanApiKey = sanitizeEnv(ETHERSCAN_API_KEY);
+  return runSuper(args);
+});
 
 /** @type import("hardhat/config").HardhatUserConfig */
 module.exports = {
   solidity: {
-    version: "0.8.24",
+    version: "0.8.26",
     settings: {
       optimizer: {
         enabled: true,
@@ -41,18 +38,11 @@ module.exports = {
     hardhat: {},
     localhost: {
       url: "http://127.0.0.1:8545"
-    },
-    sepolia: {
-      url: sepoliaRpcUrl,
-      accounts: normalizedPrivateKey ? [normalizedPrivateKey] : []
     }
   },
   gasReporter: {
-    enabled: REPORT_GAS === "true",
+    enabled: process.env.REPORT_GAS === "true",
     currency: "USD",
     noColors: true
-  },
-  etherscan: {
-    apiKey: etherscanApiKey
   }
 };

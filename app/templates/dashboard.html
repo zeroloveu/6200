@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+
+{% block title %}工作台 | Vote Station{% endblock %}
+
+{% block content %}
+  <section class="workspace-head">
+    <div>
+      <p class="eyebrow">Workspace</p>
+      <h1>{{ current_user.username }} 的链上投票工作台</h1>
+      <p class="lead">
+        在这里管理你创建的投票、查看被邀请参与的项目，并快速进入结果页或详情页。
+      </p>
+    </div>
+    <a href="/polls/new" class="button">发布链上投票</a>
+  </section>
+
+  <section class="dashboard-columns">
+    <div class="column">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">Created</p>
+          <h2>我创建的投票</h2>
+        </div>
+      </div>
+      {% if created_polls %}
+        <div class="poll-list">
+          {% for poll in created_polls %}
+            <article class="poll-row">
+              <div>
+                <span class="status status-{{ poll.status }}">{{ poll.status }}</span>
+                <h3><a href="/polls/{{ poll.id }}">{{ poll.topic }}</a></h3>
+                <p>合约：{{ poll.chain_contract_address or "未部署" }}</p>
+              </div>
+              <div class="poll-meta">
+                <span>{{ poll.starts_at|format_dt }}</span>
+                <span>{{ poll.ends_at|format_dt }}</span>
+              </div>
+            </article>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="empty-state">
+          <p>你还没有创建任何投票。</p>
+        </div>
+      {% endif %}
+    </div>
+
+    <div class="column">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">Assigned</p>
+          <h2>我可以参与的投票</h2>
+        </div>
+      </div>
+      {% if invited_polls %}
+        <div class="poll-list">
+          {% for poll in invited_polls %}
+            <article class="poll-row">
+              <div>
+                <span class="status status-{{ poll.status }}">{{ poll.status }}</span>
+                <h3><a href="/polls/{{ poll.id }}">{{ poll.topic }}</a></h3>
+                <p>创建者：{{ poll.creator_username }}</p>
+              </div>
+              <div class="poll-meta">
+                <span>{{ poll.chain_network_name or "sepolia" }}</span>
+                <span>{{ poll.ends_at|format_dt }}</span>
+              </div>
+            </article>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="empty-state">
+          <p>当前没有分配给你的进行中投票。</p>
+        </div>
+      {% endif %}
+    </div>
+  </section>
+
+  <section class="section-grid">
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">Public Results</p>
+        <h2>公开结果入口</h2>
+      </div>
+    </div>
+    {% if public_results %}
+      <div class="results-grid">
+        {% for poll in public_results %}
+          <a class="result-tile" href="/polls/{{ poll.id }}/results">
+            <div class="result-tile-head">
+              <span class="status status-ended">ended</span>
+              <span>{{ poll.chain_network_name or "sepolia" }}</span>
+            </div>
+            <h3>{{ poll.topic }}</h3>
+            <p>{{ poll.chain_contract_address or "未部署" }}</p>
+          </a>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="empty-state">
+        <p>还没有可公开查看的结果。</p>
+      </div>
+    {% endif %}
+  </section>
+{% endblock %}

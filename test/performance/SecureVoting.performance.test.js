@@ -41,4 +41,14 @@ describe("SecureVoting - Performance Tests", function () {
     const avgGas = totalGas / BigInt(allVoters.length);
     expect(avgGas).to.be.lessThan(120000n);
   });
+
+  it("keeps abstain gas in a reasonable range", async function () {
+    const { voting, voters, startTime } = await loadFixture(performanceFixture);
+    await time.increaseTo(startTime + 1n);
+
+    const tx = await voting.connect(voters[0]).abstain();
+    const receipt = await tx.wait();
+
+    expect(receipt.gasUsed).to.be.lessThan(100000n);
+  });
 });

@@ -29,6 +29,7 @@ contract SecureVoting {
     uint64 public immutable startTime;
     uint64 public immutable endTime;
     uint256 public totalVotes;
+    uint256 public totalAbstentions;
     uint256 public totalRegisteredVoters;
 
     mapping(address => bool) public isRegisteredVoter;
@@ -42,6 +43,7 @@ contract SecureVoting {
     event CandidateCreated(uint256 indexed candidateId, string name);
     event VoterRegistered(address indexed voter);
     event VoteCast(address indexed voter, uint256 indexed candidateId);
+    event Abstained(address indexed voter);
 
     modifier onlyOwner() {
         if (msg.sender != owner) revert NotOwner();
@@ -99,8 +101,7 @@ contract SecureVoting {
     }
 
     function vote(uint256 candidateId) external duringElection {
-        if (!isRegisteredVoter[msg.sender]) revert NotRegistered();
-        if (hasVoted[msg.sender]) revert AlreadyVoted();
+        _ensureEligibleVoter(msg.sender);
         if (candidateId >= candidateTotal) revert InvalidCandidateId();
 
         hasVoted[msg.sender] = true;
@@ -108,6 +109,15 @@ contract SecureVoting {
         candidates[candidateId].voteCount += 1;
 
         emit VoteCast(msg.sender, candidateId);
+    }
+
+    function abstain() external duringElection {
+        _ensureEligibleVoter(msg.sender);
+
+        hasVoted[msg.sender] = true;
+        totalAbstentions += 1;
+
+        emit Abstained(msg.sender);
     }
 
     function candidateCount() external view returns (uint256) {
@@ -168,5 +178,10 @@ contract SecureVoting {
         isRegisteredVoter[voter] = true;
         totalRegisteredVoters += 1;
         emit VoterRegistered(voter);
+    }
+
+    function _ensureEligibleVoter(address voter) internal view {
+        if (!isRegisteredVoter[voter]) revert NotRegistered();
+        if (hasVoted[voter]) revert AlreadyVoted();
     }
 }

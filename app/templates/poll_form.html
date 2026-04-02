@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page_title }} | Vote Station{% endblock %}
+
+{% block content %}
+  <section class="workspace-head">
+    <div>
+      <p class="eyebrow">Chain Poll Editor</p>
+      <h1>{{ page_title }}</h1>
+      <p class="lead">
+        在这里配置投票议题、时间范围、候选项和允许名单。提交后，系统会把这份投票部署到链上。
+      </p>
+    </div>
+  </section>
+
+  <section class="editor-layout">
+    <form
+      class="editor-form"
+      method="post"
+      action="{% if poll %}/polls/{{ poll.id }}/edit{% else %}/polls/new{% endif %}"
+      data-option-editor
+    >
+      {% if form_error %}
+        <p class="form-error">{{ form_error }}</p>
+      {% endif %}
+
+      <label>
+        投票议题
+        <input type="text" name="topic" value="{{ form_data.topic }}" placeholder="例如：是否通过 2026 社团预算" required>
+      </label>
+
+      <div class="two-col">
+        <label>
+          开始时间
+          <input type="datetime-local" name="starts_at" value="{{ form_data.starts_at }}" required>
+        </label>
+        <label>
+          结束时间
+          <input type="datetime-local" name="ends_at" value="{{ form_data.ends_at }}" required>
+        </label>
+      </div>
+
+      <section class="option-builder" aria-labelledby="option-builder-title">
+        <div class="option-builder-head">
+          <div>
+            <p class="eyebrow">Options</p>
+            <h2 id="option-builder-title">候选项</h2>
+          </div>
+          <button type="button" class="button button-secondary option-add-button" data-add-option>
+            新增选项
+          </button>
+        </div>
+        <div class="option-builder-help">
+          每个选项都会成为链上候选项。系统已经单独支持“弃权”，这里不需要把“弃权”手动加入候选项。
+        </div>
+        <div class="option-list-editor" data-option-list></div>
+        <textarea name="options_raw" data-options-raw hidden required>{{ form_data.options_raw }}</textarea>
+        <template data-option-template>
+          <div class="option-editor-row" data-option-row>
+            <div class="option-editor-index" data-option-index></div>
+            <div class="option-editor-field">
+              <label>
+                <span class="sr-only">候选项内容</span>
+                <input type="text" data-option-input placeholder="输入一个候选项" autocomplete="off">
+              </label>
+            </div>
+            <button type="button" class="option-remove-button" data-remove-option>删除</button>
+          </div>
+        </template>
+      </section>
+
+      <label>
+        允许投票的用户名
+        <textarea name="allowed_users_raw" rows="8" placeholder="alice&#10;bob" required>{{ form_data.allowed_users_raw }}</textarea>
+      </label>
+
+      <div class="hero-actions">
+        <button type="submit" class="button">{{ submit_label }}</button>
+        {% if poll %}
+          <a href="/polls/{{ poll.id }}" class="button button-secondary">返回详情</a>
+        {% else %}
+          <a href="/dashboard" class="button button-secondary">返回工作台</a>
+        {% endif %}
+      </div>
+    </form>
+
+    <aside class="editor-side">
+      <p class="eyebrow">Registered Users</p>
+      <h2>可加入允许名单的用户</h2>
+      <div class="name-cloud">
+        {% for user in registered_users %}
+          <span>{{ user.username }}{% if user.wallet_address %}<small> 已绑定钱包</small>{% endif %}</span>
+        {% endfor %}
+      </div>
+      <p class="muted">没有绑定钱包地址的账号，会在发布或重新部署时被系统拦截。</p>
+    </aside>
+  </section>
+
+  <script>
+    (() => {
+      const form = document.querySelector("[data-option-editor]");
+      if (!form) return;
+
+      const optionList = form.querySelector("[data-option-list]");
+      const addButton = form.querySelector("[data-add-option]");
+      const template = form.querySelector("[data-option-template]");
+      const hiddenTextarea = form.querySelector("[data-options-raw]");
+      const submitButton = form.querySelector('button[type="submit"]');
+      const initialValues = hiddenTextarea.value
+        .split(/\r?\n|,/)
+        .map((value) => value.trim())
+        .filter(Boolean);
+      let isSubmitting = false;
+
+      const syncOptions = () => {
+        const rows = Array.from(optionList.querySelectorAll("[data-option-row]"));
+        const values = rows
+          .map((row, index) => {
+            row.querySelector("[data-option-index]").textContent = String(index + 1).padStart(2, "0");
+            return row.querySelector("[data-option-input]").value.trim();
+          })
+          .filter(Boolean);
+
+        hiddenTextarea.value = values.join("\n");
+
+        rows.forEach((row) => {
+          row.querySelector("[data-remove-option]").disabled = rows.length <= 2;
+        });
+      };
+
+      const createOptionRow = (value = "") => {
+        const fragment = template.content.cloneNode(true);
+        const row = fragment.querySelector("[data-option-row]");
+        const input = row.querySelector("[data-option-input]");
+        const removeButton = row.querySelector("[data-remove-option]");
+        input.value = value;
+        input.addEventListener("input", syncOptions);
+        removeButton.addEventListener("click", () => {
+          row.remove();
+          syncOptions();
+        });
+        optionList.appendChild(row);
+        syncOptions();
+      };
+
+      (initialValues.length >= 2 ? initialValues : ["", ""]).forEach((value) => createOptionRow(value));
+      addButton.addEventListener("click", () => createOptionRow(""));
+      form.addEventListener("submit", (event) => {
+        if (isSubmitting) {
+          event.preventDefault();
+          return;
+        }
+
+        syncOptions();
+        isSubmitting = true;
+        if (submitButton) {
+          submitButton.disabled = true;
+          submitButton.textContent = "正在提交，请稍候...";
+        }
+      });
+    })();
+  </script>
+{% endblock %}

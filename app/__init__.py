@@ -1,0 +1,1 @@
+"""FastAPI voting application package."""

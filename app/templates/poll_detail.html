@@ -1,0 +1,208 @@
+{% extends "base.html" %}
+
+{% block title %}{{ poll.topic }} | Vote Station{% endblock %}
+
+{% block content %}
+  <section class="detail-hero">
+    <div>
+      <p class="eyebrow">Chain Poll Detail</p>
+      <h1>{{ poll.topic }}</h1>
+      <div class="inline-meta">
+        <span class="status status-{{ poll_status }}">{{ poll_status }}</span>
+        <span>创建者：{{ poll.creator.username }}</span>
+        <span>开始：{{ poll.starts_at|format_dt }}</span>
+        <span>结束：{{ poll.ends_at|format_dt }}</span>
+      </div>
+    </div>
+    {% if current_user and current_user.id == poll.created_by_user_id %}
+      <div class="hero-actions">
+        <a href="/polls/{{ poll.id }}/edit" class="button button-secondary">重新部署设置</a>
+        <form method="post" action="/polls/{{ poll.id }}/delete" onsubmit="return confirm('确认删除这条应用记录吗？链上合约不会被删除。');">
+          <button type="submit" class="button button-danger">删除应用记录</button>
+        </form>
+      </div>
+    {% endif %}
+  </section>
+
+  <section class="detail-layout">
+    <div class="detail-main">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">On-chain Contract</p>
+          <h2>链上信息</h2>
+        </div>
+      </div>
+      <div class="notice-panel">
+        <p><strong>合约地址：</strong>{{ poll.chain_contract_address or "未部署" }}</p>
+        <p><strong>网络：</strong>{{ poll.chain_network_name or "sepolia" }}</p>
+        {% if contract_url %}
+          <p><a href="{{ contract_url }}" target="_blank" rel="noreferrer">在区块浏览器中查看合约</a></p>
+        {% endif %}
+        {% if deploy_tx_url %}
+          <p><a href="{{ deploy_tx_url }}" target="_blank" rel="noreferrer">查看部署交易</a></p>
+        {% endif %}
+        {% if chain_error %}
+          <p class="form-error">{{ chain_error }}</p>
+        {% endif %}
+      </div>
+
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">Options</p>
+          <h2>链上候选项目</h2>
+        </div>
+      </div>
+      <ol class="option-list">
+        {% for option in poll.get_options() %}
+          <li>{{ option }}</li>
+        {% endfor %}
+      </ol>
+
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">Wallet Vote</p>
+          <h2>用浏览器钱包发起链上交易</h2>
+        </div>
+      </div>
+
+      {% if not current_user %}
+        <div class="notice-panel">
+          <p>请先登录，再进入这个投票的链上投票页。</p>
+        </div>
+      {% elif not current_user.wallet_address %}
+        <div class="notice-panel">
+          <p>你的账号还没有绑定钱包地址。先去 <a href="/profile">钱包资料</a> 中绑定，再回来投票。</p>
+        </div>
+      {% elif viewer_action.actionType %}
+        <div class="notice-panel">
+          {% if viewer_action.actionType == "abstain" %}
+            <p>你已经在链上提交过弃权交易。</p>
+          {% else %}
+            <p>你已经在链上投过票，候选项编号：{{ viewer_action.candidateId }}。</p>
+          {% endif %}
+          {% if viewer_action.txHash %}
+            <p>交易哈希：{{ viewer_action.txHash }}</p>
+          {% endif %}
+        </div>
+      {% elif poll_status != "active" %}
+        <div class="notice-panel">
+          <p>当前不在链上可投票时间内。只有在 ACTIVE 状态下才能提交链上交易。</p>
+        </div>
+      {% elif not chain_summary %}
+        <div class="notice-panel">
+          <p>暂时无法读取链上合约状态，请稍后刷新。</p>
+        </div>
+      {% else %}
+        <div class="notice-panel" id="wallet-vote-app"
+             data-contract-address="{{ poll.chain_contract_address }}"
+             data-wallet-address="{{ current_user.wallet_address }}"
+             data-poll-id="{{ poll.id }}">
+          <p><strong>当前登录账号绑定的钱包：</strong>{{ current_user.wallet_address }}</p>
+          <p id="wallet-vote-status">点击下方按钮后，系统会请求浏览器钱包连接，并在链上发起交易。</p>
+
+          <div class="vote-form">
+            {% for option in poll.get_options() %}
+              <button type="button" class="vote-option wallet-vote-button" data-choice-type="vote" data-choice-value="{{ loop.index0 }}">
+                <span>投给 {{ option }}</span>
+              </button>
+            {% endfor %}
+            <button type="button" class="vote-option wallet-vote-button" data-choice-type="abstain" data-choice-value="">
+              <span>选择弃权并记录到链上</span>
+            </button>
+          </div>
+
+          <form method="post" action="/polls/{{ poll.id }}/sync-chain-action" id="wallet-sync-form" hidden>
+            <input type="hidden" name="action_type" id="sync-action-type">
+            <input type="hidden" name="tx_hash" id="sync-tx-hash">
+            <input type="hidden" name="candidate_id" id="sync-candidate-id">
+          </form>
+        </div>
+
+        <script src="{{ url_for('static', path='/vendor/ethers.umd.min.js') }}"></script>
+        <script>
+          (() => {
+            const root = document.getElementById("wallet-vote-app");
+            if (!root || !window.ethers) return;
+
+            const statusEl = document.getElementById("wallet-vote-status");
+            const buttons = Array.from(document.querySelectorAll(".wallet-vote-button"));
+            const syncForm = document.getElementById("wallet-sync-form");
+            const contractAddress = root.dataset.contractAddress;
+            const expectedWallet = (root.dataset.walletAddress || "").toLowerCase();
+            const abi = [
+              "function vote(uint256 candidateId)",
+              "function abstain()"
+            ];
+
+            const setBusy = (busy, message) => {
+              buttons.forEach((button) => {
+                button.disabled = busy;
+              });
+              if (message) statusEl.textContent = message;
+            };
+
+            const syncBackToServer = (actionType, txHash, candidateId) => {
+              document.getElementById("sync-action-type").value = actionType;
+              document.getElementById("sync-tx-hash").value = txHash;
+              document.getElementById("sync-candidate-id").value = candidateId ?? "";
+              syncForm.submit();
+            };
+
+            buttons.forEach((button) => {
+              button.addEventListener("click", async () => {
+                if (!window.ethereum) {
+                  statusEl.textContent = "没有检测到浏览器钱包，请先安装并打开 MetaMask。";
+                  return;
+                }
+
+                try {
+                  setBusy(true, "正在连接钱包...");
+                  const provider = new window.ethers.BrowserProvider(window.ethereum);
+                  await provider.send("eth_requestAccounts", []);
+                  const signer = await provider.getSigner();
+                  const signerAddress = (await signer.getAddress()).toLowerCase();
+                  if (signerAddress !== expectedWallet) {
+                    setBusy(false, "当前钱包账户与系统中绑定的钱包地址不一致，请先切换账户。");
+                    return;
+                  }
+
+                  const contract = new window.ethers.Contract(contractAddress, abi, signer);
+                  const choiceType = button.dataset.choiceType;
+                  const choiceValue = button.dataset.choiceValue;
+
+                  setBusy(true, "正在向链上发送交易，请在钱包里确认...");
+                  const tx = choiceType === "abstain"
+                    ? await contract.abstain()
+                    : await contract.vote(Number(choiceValue));
+
+                  setBusy(true, `交易已发出，等待确认中：${tx.hash}`);
+                  await tx.wait();
+                  syncBackToServer(choiceType, tx.hash, choiceType === "vote" ? choiceValue : "");
+                } catch (error) {
+                  setBusy(false, error && error.message ? error.message : "链上交易失败。");
+                }
+              });
+            });
+          })();
+        </script>
+      {% endif %}
+    </div>
+
+    <aside class="detail-side">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">Allowed Voters</p>
+          <h2>允许名单</h2>
+        </div>
+      </div>
+      <div class="name-cloud">
+        {% for user in allowed_users %}
+          <span>{{ user.username }}<small> {{ user.wallet_address or "未绑定钱包" }}</small></span>
+        {% endfor %}
+      </div>
+      <p class="muted">
+        链上合约只识别钱包地址，因此允许名单中的用户必须提前在系统中绑定钱包。
+      </p>
+    </aside>
+  </section>
+{% endblock %}

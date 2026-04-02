@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Vote Station Hybrid{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Noto+Serif+SC:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', path='/styles.css') }}">
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <a href="/" class="brand">
+        <span class="brand-mark"></span>
+        <span>
+          <strong>Vote Station</strong>
+          <small>Web 管理，链上记票</small>
+        </span>
+      </a>
+      <nav class="nav">
+        <a href="/">首页</a>
+        {% if current_user %}
+          <a href="/dashboard">工作台</a>
+          <a href="/profile">钱包资料</a>
+          <a href="/polls/new" class="nav-cta">发布链上投票</a>
+          <form method="post" action="/logout">
+            <button type="submit" class="link-button">退出 {{ current_user.username }}</button>
+          </form>
+        {% else %}
+          <a href="/login">登录</a>
+          <a href="/register" class="nav-cta">注册</a>
+        {% endif %}
+      </nav>
+    </header>
+
+    <main class="page">
+      {% if messages %}
+        <section class="flash-stack">
+          {% for message in messages %}
+            <div class="flash flash-{{ message.category }}">{{ message.text }}</div>
+          {% endfor %}
+        </section>
+      {% endif %}
+
+      {% if not chain_ready %}
+        <section class="flash-stack">
+          <div class="flash flash-error">
+            当前还没有完整配置链上 RPC 或部署私钥。页面仍可浏览，但发布链上投票和读取合约状态会失败。
+          </div>
+        </section>
+      {% endif %}
+
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</body>
+</html>

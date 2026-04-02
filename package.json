@@ -1,7 +1,7 @@
 {
   "name": "secure-voting-course-project",
   "version": "1.0.0",
-  "description": "A simple secure voting smart contract project for coursework",
+  "description": "A hybrid FastAPI + on-chain voting application",
   "main": "index.js",
   "scripts": {
     "clean": "hardhat clean",
@@ -11,13 +11,7 @@
     "test:integration": "hardhat test --grep \"SecureVoting - Integration Tests\"",
     "test:performance": "hardhat test --grep \"SecureVoting - Performance Tests\"",
     "test:gas": "cross-env REPORT_GAS=true hardhat test",
-    "coverage": "hardhat coverage",
-    "node": "hardhat node",
-    "deploy:local": "hardhat run scripts/deploy.js --network localhost",
-    "deploy:sepolia": "hardhat run scripts/deploy.js --network sepolia",
-    "status:sepolia": "hardhat run scripts/status.js --network sepolia",
-    "register:sepolia": "hardhat run scripts/register-voter.js --network sepolia",
-    "vote:sepolia": "hardhat run scripts/vote.js --network sepolia"
+    "coverage": "hardhat coverage"
   },
   "keywords": [
     "solidity",

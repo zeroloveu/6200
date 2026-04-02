@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block title %}登录 | Vote Station{% endblock %}
+
+{% block content %}
+  <section class="auth-layout">
+    <div class="auth-copy">
+      <p class="eyebrow">Sign In</p>
+      <h1>登录后管理投票，并用钱包完成链上提交。</h1>
+      <p class="lead">
+        账号负责站内权限，钱包负责链上身份。登录后你可以创建投票、查看详情，并在需要时通过浏览器钱包发起交易。
+      </p>
+    </div>
+
+    <form class="auth-form" method="post" action="/login">
+      <h2>登录</h2>
+      {% if form_error %}
+        <p class="form-error">{{ form_error }}</p>
+      {% endif %}
+      <label>
+        用户名
+        <input type="text" name="username" value="{{ prefill_username or '' }}" placeholder="alice" required>
+      </label>
+      <label>
+        密码
+        <input type="password" name="password" required>
+      </label>
+      <button type="submit" class="button">进入工作台</button>
+      <p class="auth-footnote">还没有账号？<a href="/register">现在注册</a></p>
+    </form>
+  </section>
+{% endblock %}

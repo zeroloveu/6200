@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+
+{% block title %}Vote Station Hybrid{% endblock %}
+
+{% block content %}
+  <section class="hero">
+    <div class="hero-copy">
+      <p class="eyebrow">Hybrid Voting App</p>
+      <h1>在网页里管理投票，在链上完成记票。</h1>
+      <p class="lead">
+        这个系统把账号、名单和投票配置放在 Web 端，把真正的投票动作和结果统计交给智能合约。
+        对创建者来说足够清晰，对参与者来说也足够直接。
+      </p>
+      <div class="hero-actions">
+        {% if current_user %}
+          <a href="/dashboard" class="button">进入工作台</a>
+          <a href="/polls/new" class="button button-secondary">发布链上投票</a>
+        {% else %}
+          <a href="/register" class="button">注册并绑定钱包</a>
+          <a href="/login" class="button button-secondary">已有账号，立即登录</a>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="hero-panel">
+      <div class="hero-stat">
+        <span>公开结果</span>
+        <strong>{{ public_results|length }}</strong>
+      </div>
+      <div class="hero-stat">
+        <span>当前可处理投票</span>
+        <strong>{{ accessible_live_polls|length if current_user else 0 }}</strong>
+      </div>
+      <p class="muted">
+        已结束投票会公开展示结果；仍在进行中的投票，仅创建者和允许名单中的用户可见。
+      </p>
+    </div>
+  </section>
+
+  {% if current_user and accessible_live_polls %}
+    <section class="section-grid">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">Assigned</p>
+          <h2>你当前可以参与的投票</h2>
+        </div>
+      </div>
+      <div class="poll-list">
+        {% for poll in accessible_live_polls %}
+          <article class="poll-row">
+            <div>
+              <span class="status status-{{ poll.status }}">{{ poll.status }}</span>
+              <h3><a href="/polls/{{ poll.id }}">{{ poll.topic }}</a></h3>
+              <p>创建者：{{ poll.creator_username }}</p>
+            </div>
+            <div class="poll-meta">
+              <span>开始：{{ poll.starts_at|format_dt }}</span>
+              <span>结束：{{ poll.ends_at|format_dt }}</span>
+            </div>
+          </article>
+        {% endfor %}
+      </div>
+    </section>
+  {% endif %}
+
+  <section class="section-grid">
+    <div class="section-head">
+      <div>
+        <p class="eyebrow">Public Results</p>
+        <h2>公开结果</h2>
+      </div>
+    </div>
+    {% if public_results %}
+      <div class="results-grid">
+        {% for poll in public_results %}
+          <a class="result-tile" href="/polls/{{ poll.id }}/results">
+            <div class="result-tile-head">
+              <span class="status status-ended">ended</span>
+              <span>{{ poll.chain_network_name or "sepolia" }}</span>
+            </div>
+            <h3>{{ poll.topic }}</h3>
+            <p>合约：{{ poll.chain_contract_address or "未部署" }}</p>
+          </a>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="empty-state">
+        <p>当前还没有可公开查看的链上结果。</p>
+      </div>
+    {% endif %}
+  </section>
+{% endblock %}
