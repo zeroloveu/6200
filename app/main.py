@@ -33,6 +33,7 @@ USERNAME_PATTERN = re.compile(r"^[a-z0-9_.-]{3,32}$")
 WALLET_PATTERN = re.compile(r"^0x[a-fA-F0-9]{40}$")
 TX_HASH_PATTERN = re.compile(r"^0x[a-fA-F0-9]{64}$")
 APP_TIMEZONE = ZoneInfo("Asia/Shanghai")
+APP_SESSION_HTTPS_ONLY = (os.getenv("APP_SESSION_HTTPS_ONLY", "false").strip().lower() == "true")
 
 
 @asynccontextmanager
@@ -46,6 +47,7 @@ app.add_middleware(
     SessionMiddleware,
     secret_key=os.getenv("APP_SECRET_KEY", "replace-me-in-production"),
     same_site="lax",
+    https_only=APP_SESSION_HTTPS_ONLY,
 )
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 

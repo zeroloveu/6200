@@ -49,7 +49,7 @@
       <div class="section-head">
         <div>
           <p class="eyebrow">Options</p>
-          <h2>链上候选项目</h2>
+          <h2>链上候选项</h2>
         </div>
       </div>
       <ol class="option-list">
@@ -96,9 +96,11 @@
         <div class="notice-panel" id="wallet-vote-app"
              data-contract-address="{{ poll.chain_contract_address }}"
              data-wallet-address="{{ current_user.wallet_address }}"
-             data-poll-id="{{ poll.id }}">
+             data-poll-id="{{ poll.id }}"
+             data-chain-id="{{ poll.chain_chain_id or '' }}"
+             data-network-name="{{ poll.chain_network_name or 'sepolia' }}">
           <p><strong>当前登录账号绑定的钱包：</strong>{{ current_user.wallet_address }}</p>
-          <p id="wallet-vote-status">点击下方按钮后，系统会请求浏览器钱包连接，并在链上发起交易。</p>
+          <p id="wallet-vote-status">点击下方按钮后，系统会请求浏览器钱包连接，并先校验是否处于正确链网络，再发起链上交易。</p>
 
           <div class="vote-form">
             {% for option in poll.get_options() %}
@@ -129,6 +131,8 @@
             const syncForm = document.getElementById("wallet-sync-form");
             const contractAddress = root.dataset.contractAddress;
             const expectedWallet = (root.dataset.walletAddress || "").toLowerCase();
+            const expectedChainId = (root.dataset.chainId || "").trim();
+            const expectedNetworkName = (root.dataset.networkName || "sepolia").trim();
             const abi = [
               "function vote(uint256 candidateId)",
               "function abstain()"
@@ -138,7 +142,9 @@
               buttons.forEach((button) => {
                 button.disabled = busy;
               });
-              if (message) statusEl.textContent = message;
+              if (message) {
+                statusEl.textContent = message;
+              }
             };
 
             const syncBackToServer = (actionType, txHash, candidateId) => {
@@ -146,6 +152,60 @@
               document.getElementById("sync-tx-hash").value = txHash;
               document.getElementById("sync-candidate-id").value = candidateId ?? "";
               syncForm.submit();
+            };
+
+            const toHexChainId = (chainId) => {
+              try {
+                return `0x${BigInt(chainId).toString(16)}`;
+              } catch {
+                return "";
+              }
+            };
+
+            const ensureExpectedNetwork = async (provider) => {
+              if (!expectedChainId) return;
+
+              const currentNetwork = await provider.getNetwork();
+              if (String(currentNetwork.chainId) === expectedChainId) {
+                return;
+              }
+
+              const chainIdHex = toHexChainId(expectedChainId);
+              if (!chainIdHex) {
+                throw new Error(`应用配置的链 ID 无效：${expectedChainId}`);
+              }
+
+              try {
+                await window.ethereum.request({
+                  method: "wallet_switchEthereumChain",
+                  params: [{ chainId: chainIdHex }],
+                });
+              } catch (switchError) {
+                if (switchError && switchError.code === 4902 && expectedChainId === "11155111") {
+                  await window.ethereum.request({
+                    method: "wallet_addEthereumChain",
+                    params: [{
+                      chainId: chainIdHex,
+                      chainName: "Sepolia",
+                      nativeCurrency: {
+                        name: "Sepolia ETH",
+                        symbol: "SEP ETH",
+                        decimals: 18,
+                      },
+                      rpcUrls: ["https://rpc.sepolia.org"],
+                      blockExplorerUrls: ["https://sepolia.etherscan.io"],
+                    }],
+                  });
+                } else {
+                  throw switchError;
+                }
+              }
+
+              const refreshedProvider = new window.ethers.BrowserProvider(window.ethereum);
+              const refreshedNetwork = await refreshedProvider.getNetwork();
+              if (String(refreshedNetwork.chainId) !== expectedChainId) {
+                throw new Error(`请先把 MetaMask 切换到 ${expectedNetworkName} 再投票。`);
+              }
             };
 
             buttons.forEach((button) => {
@@ -161,21 +221,27 @@
                   await provider.send("eth_requestAccounts", []);
                   const signer = await provider.getSigner();
                   const signerAddress = (await signer.getAddress()).toLowerCase();
+
                   if (signerAddress !== expectedWallet) {
-                    setBusy(false, "当前钱包账户与系统中绑定的钱包地址不一致，请先切换账户。");
+                    setBusy(false, "当前 MetaMask 账户和系统里绑定的钱包地址不一致，请先切换账户。");
                     return;
                   }
 
-                  const contract = new window.ethers.Contract(contractAddress, abi, signer);
+                  setBusy(true, `正在检查网络，目标网络：${expectedNetworkName}...`);
+                  await ensureExpectedNetwork(provider);
+
+                  const refreshedProvider = new window.ethers.BrowserProvider(window.ethereum);
+                  const refreshedSigner = await refreshedProvider.getSigner();
+                  const contract = new window.ethers.Contract(contractAddress, abi, refreshedSigner);
                   const choiceType = button.dataset.choiceType;
                   const choiceValue = button.dataset.choiceValue;
 
-                  setBusy(true, "正在向链上发送交易，请在钱包里确认...");
+                  setBusy(true, "正在向链上发送交易，请在 MetaMask 中确认...");
                   const tx = choiceType === "abstain"
                     ? await contract.abstain()
                     : await contract.vote(Number(choiceValue));
 
-                  setBusy(true, `交易已发出，等待确认中：${tx.hash}`);
+                  setBusy(true, `交易已发送，等待确认：${tx.hash}`);
                   await tx.wait();
                   syncBackToServer(choiceType, tx.hash, choiceType === "vote" ? choiceValue : "");
                 } catch (error) {

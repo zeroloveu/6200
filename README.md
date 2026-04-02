@@ -169,6 +169,77 @@ docker compose down
 docker compose up --build -d
 ```
 
+## Public Internet Deployment
+
+If you want other machines on the internet to access this website, the recommended setup is:
+
+- Run the FastAPI app in Docker
+- Put a reverse proxy in front of it
+- Serve the site over HTTPS with a real domain name
+
+HTTPS is especially important when users need to interact with browser wallets from a non-localhost address.
+
+### 1. Prepare a domain name
+
+Point a domain or subdomain to your server public IP, for example:
+
+```text
+vote.example.com -> your server public IP
+```
+
+### 2. Update `.env`
+
+At minimum:
+
+```env
+APP_SECRET_KEY=change-this-secret-in-production
+APP_TIMEZONE=Asia/Shanghai
+APP_SESSION_HTTPS_ONLY=true
+
+APP_CHAIN_RPC_URL=https://eth-sepolia.g.alchemy.com/v2/YOUR_KEY
+APP_CHAIN_PRIVATE_KEY=YOUR_PRIVATE_KEY_WITHOUT_0x
+APP_CHAIN_NETWORK_NAME=sepolia
+
+APP_PUBLIC_DOMAIN=vote.example.com
+```
+
+### 3. Start the public stack
+
+```bash
+docker compose -f docker-compose.public.yml up --build -d
+```
+
+This stack exposes:
+
+- `80/tcp`
+- `443/tcp`
+
+and uses Caddy to reverse proxy requests to the FastAPI container.
+
+### 4. Open firewall / security-group ports
+
+Make sure these ports are reachable from the internet:
+
+- `80`
+- `443`
+
+### 5. Visit the site
+
+Open:
+
+```text
+https://vote.example.com
+```
+
+### 6. Stop the public stack
+
+```bash
+docker compose -f docker-compose.public.yml down
+```
+
+Detailed deployment notes:
+`docs/DEPLOY_PUBLIC_ACCESS.md`
+
 ## Web Voting Flow
 
 1. Register two or more users in the web app.
